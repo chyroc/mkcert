@@ -4,7 +4,7 @@
 
 // +build analysis
 
-package main
+package mkcert
 
 import (
 	"golang.org/x/tools/go/analysis"

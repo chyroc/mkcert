@@ -3,12 +3,11 @@
 // license that can be found in the LICENSE file.
 
 // Command mkcert is a simple zero-config tool to make development certificates.
-package main
+package mkcert
 
 import (
 	"crypto"
 	"crypto/x509"
-	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -84,50 +83,88 @@ const advancedUsage = `Advanced options:
 // golang.org/issue/29814 and golang.org/issue/29228.
 var Version string
 
-func main() {
-	log.SetFlags(0)
-	var (
-		installFlag   = flag.Bool("install", false, "")
-		uninstallFlag = flag.Bool("uninstall", false, "")
-		pkcs12Flag    = flag.Bool("pkcs12", false, "")
-		ecdsaFlag     = flag.Bool("ecdsa", false, "")
-		clientFlag    = flag.Bool("client", false, "")
-		helpFlag      = flag.Bool("help", false, "")
-		carootFlag    = flag.Bool("CAROOT", false, "")
-		csrFlag       = flag.String("csr", "", "")
-		certFileFlag  = flag.String("cert-file", "", "")
-		keyFileFlag   = flag.String("key-file", "", "")
-		p12FileFlag   = flag.String("p12-file", "", "")
-		versionFlag   = flag.Bool("version", false, "")
+func Install() error {
+	var varFalse = false
+	var varTrue = true
+	var varEmpty = ""
+	return Mkcert(
+		&varTrue,
+		&varFalse,
+		&varFalse,
+		&varFalse,
+		&varFalse,
+		&varFalse,
+		&varFalse,
+		&varEmpty,
+		&varEmpty,
+		&varEmpty,
+		&varEmpty,
+		&varFalse,
+		[]string{},
 	)
-	flag.Usage = func() {
-		fmt.Fprint(flag.CommandLine.Output(), shortUsage)
-		fmt.Fprintln(flag.CommandLine.Output(), `For more options, run "mkcert -help".`)
-	}
-	flag.Parse()
+}
+
+func CreateCertificate(hosts []string) error {
+	var varFalse = false
+	var varEmpty = ""
+	return Mkcert(
+		&varFalse,
+		&varFalse,
+		&varFalse,
+		&varFalse,
+		&varFalse,
+		&varFalse,
+		&varFalse,
+		&varEmpty,
+		&varEmpty,
+		&varEmpty,
+		&varEmpty,
+		&varFalse,
+		hosts,
+	)
+}
+
+
+func Mkcert(
+	installFlag *bool,
+	uninstallFlag *bool,
+	pkcs12Flag *bool,
+	ecdsaFlag *bool,
+	clientFlag *bool,
+	helpFlag *bool,
+	carootFlag *bool,
+	csrFlag *string,
+	certFileFlag *string,
+	keyFileFlag *string,
+	p12FileFlag *string,
+	versionFlag *bool,
+	args []string,
+) error {
+	log.SetFlags(0)
+
 	if *helpFlag {
 		fmt.Print(shortUsage)
 		fmt.Print(advancedUsage)
-		return
+		return nil
 	}
 	if *versionFlag {
 		if Version != "" {
 			fmt.Println(Version)
-			return
+			return nil
 		}
 		if buildInfo, ok := debug.ReadBuildInfo(); ok {
 			fmt.Println(buildInfo.Main.Version)
-			return
+			return nil
 		}
 		fmt.Println("(unknown)")
-		return
+		return nil
 	}
 	if *carootFlag {
 		if *installFlag || *uninstallFlag {
 			log.Fatalln("ERROR: you can't set -[un]install and -CAROOT at the same time")
 		}
 		fmt.Println(getCAROOT())
-		return
+		return nil
 	}
 	if *installFlag && *uninstallFlag {
 		log.Fatalln("ERROR: you can't set -install and -uninstall at the same time")
@@ -135,14 +172,11 @@ func main() {
 	if *csrFlag != "" && (*pkcs12Flag || *ecdsaFlag || *clientFlag) {
 		log.Fatalln("ERROR: can only combine -csr with -install and -cert-file")
 	}
-	if *csrFlag != "" && flag.NArg() != 0 {
-		log.Fatalln("ERROR: can't specify extra arguments when using -csr")
-	}
-	(&mkcert{
+	return (&mkcert{
 		installMode: *installFlag, uninstallMode: *uninstallFlag, csrPath: *csrFlag,
 		pkcs12: *pkcs12Flag, ecdsa: *ecdsaFlag, client: *clientFlag,
 		certFile: *certFileFlag, keyFile: *keyFileFlag, p12File: *p12FileFlag,
-	}).Run(flag.Args())
+	}).Run(args)
 }
 
 const rootName = "rootCA.pem"
@@ -164,10 +198,10 @@ type mkcert struct {
 	ignoreCheckFailure bool
 }
 
-func (m *mkcert) Run(args []string) {
+func (m *mkcert) Run(args []string) error {
 	m.CAROOT = getCAROOT()
 	if m.CAROOT == "" {
-		log.Fatalln("ERROR: failed to find the default CA location, set one as the CAROOT env var")
+		return fmt.Errorf("ERROR: failed to find the default CA location, set one as the CAROOT env var")
 	}
 	fatalIfErr(os.MkdirAll(m.CAROOT, 0755), "failed to create the CAROOT")
 	m.loadCA()
@@ -175,11 +209,11 @@ func (m *mkcert) Run(args []string) {
 	if m.installMode {
 		m.install()
 		if len(args) == 0 {
-			return
+			return nil
 		}
 	} else if m.uninstallMode {
 		m.uninstall()
-		return
+		return nil
 	} else {
 		var warning bool
 		if storeEnabled("system") && !m.checkPlatform() {
@@ -201,12 +235,11 @@ func (m *mkcert) Run(args []string) {
 
 	if m.csrPath != "" {
 		m.makeCertFromCSR()
-		return
+		return nil
 	}
 
 	if len(args) == 0 {
-		flag.Usage()
-		return
+		return nil
 	}
 
 	hostnameRegexp := regexp.MustCompile(`(?i)^(\*\.)?[0-9a-z_-]([0-9a-z._-]*[0-9a-z_-])?$`)
@@ -231,6 +264,8 @@ func (m *mkcert) Run(args []string) {
 	}
 
 	m.makeCert(args)
+
+	return nil
 }
 
 func getCAROOT() string {
