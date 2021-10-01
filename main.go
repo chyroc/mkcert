@@ -83,7 +83,7 @@ const advancedUsage = `Advanced options:
 // golang.org/issue/29814 and golang.org/issue/29228.
 var Version string
 
-func Install() error {
+func Install() (*MakeCertResp,error) {
 	var varFalse = false
 	var varTrue = true
 	var varEmpty = ""
@@ -104,7 +104,7 @@ func Install() error {
 	)
 }
 
-func CreateCertificate(hosts []string) error {
+func CreateCertificate(hosts []string) (*MakeCertResp,error) {
 	var varFalse = false
 	var varEmpty = ""
 	return Mkcert(
@@ -124,7 +124,6 @@ func CreateCertificate(hosts []string) error {
 	)
 }
 
-
 func Mkcert(
 	installFlag *bool,
 	uninstallFlag *bool,
@@ -139,32 +138,32 @@ func Mkcert(
 	p12FileFlag *string,
 	versionFlag *bool,
 	args []string,
-) error {
+) (*MakeCertResp,error) {
 	log.SetFlags(0)
 
 	if *helpFlag {
 		fmt.Print(shortUsage)
 		fmt.Print(advancedUsage)
-		return nil
+		return nil ,nil
 	}
 	if *versionFlag {
 		if Version != "" {
 			fmt.Println(Version)
-			return nil
+			return nil ,nil
 		}
 		if buildInfo, ok := debug.ReadBuildInfo(); ok {
 			fmt.Println(buildInfo.Main.Version)
-			return nil
+			return nil ,nil
 		}
 		fmt.Println("(unknown)")
-		return nil
+		return nil ,nil
 	}
 	if *carootFlag {
 		if *installFlag || *uninstallFlag {
 			log.Fatalln("ERROR: you can't set -[un]install and -CAROOT at the same time")
 		}
 		fmt.Println(getCAROOT())
-		return nil
+		return nil ,nil
 	}
 	if *installFlag && *uninstallFlag {
 		log.Fatalln("ERROR: you can't set -install and -uninstall at the same time")
@@ -198,10 +197,10 @@ type mkcert struct {
 	ignoreCheckFailure bool
 }
 
-func (m *mkcert) Run(args []string) error {
+func (m *mkcert) Run(args []string) (*MakeCertResp, error) {
 	m.CAROOT = getCAROOT()
 	if m.CAROOT == "" {
-		return fmt.Errorf("ERROR: failed to find the default CA location, set one as the CAROOT env var")
+		return nil, fmt.Errorf("ERROR: failed to find the default CA location, set one as the CAROOT env var")
 	}
 	fatalIfErr(os.MkdirAll(m.CAROOT, 0755), "failed to create the CAROOT")
 	m.loadCA()
@@ -209,11 +208,11 @@ func (m *mkcert) Run(args []string) error {
 	if m.installMode {
 		m.install()
 		if len(args) == 0 {
-			return nil
+			return nil, nil
 		}
 	} else if m.uninstallMode {
 		m.uninstall()
-		return nil
+		return nil, nil
 	} else {
 		var warning bool
 		if storeEnabled("system") && !m.checkPlatform() {
@@ -235,11 +234,11 @@ func (m *mkcert) Run(args []string) error {
 
 	if m.csrPath != "" {
 		m.makeCertFromCSR()
-		return nil
+		return nil, nil
 	}
 
 	if len(args) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	hostnameRegexp := regexp.MustCompile(`(?i)^(\*\.)?[0-9a-z_-]([0-9a-z._-]*[0-9a-z_-])?$`)
@@ -263,9 +262,9 @@ func (m *mkcert) Run(args []string) error {
 		}
 	}
 
-	m.makeCert(args)
+	res := m.makeCert(args)
 
-	return nil
+	return res, nil
 }
 
 func getCAROOT() string {

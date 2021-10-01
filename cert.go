@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	pkcs12 "software.sslmate.com/src/go-pkcs12"
+	"software.sslmate.com/src/go-pkcs12"
 )
 
 var userAndHostname string
@@ -47,7 +47,13 @@ func init() {
 	}
 }
 
-func (m *mkcert) makeCert(hosts []string) {
+type MakeCertResp struct {
+	CertFile   string
+	KeyFile    string
+	Expiration time.Time
+}
+
+func (m *mkcert) makeCert(hosts []string) *MakeCertResp {
 	if m.caKey == nil {
 		log.Fatalln("ERROR: can't create new certificates because the CA key (rootCA-key.pem) is missing")
 	}
@@ -143,6 +149,12 @@ func (m *mkcert) makeCert(hosts []string) {
 	}
 
 	log.Printf("It will expire on %s 🗓\n\n", expiration.Format("2 January 2006"))
+
+	return &MakeCertResp{
+		CertFile:   certFile,
+		KeyFile:    keyFile,
+		Expiration: expiration,
+	}
 }
 
 func (m *mkcert) printHosts(hosts []string) {
